@@ -5,6 +5,7 @@ import net.coobird.thumbnailator.Thumbnails;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import run.halo.app.config.properties.HaloProperties;
 import run.halo.app.exception.FileOperationException;
@@ -16,9 +17,11 @@ import run.halo.app.utils.FilenameUtils;
 import run.halo.app.utils.HaloUtils;
 import run.halo.app.utils.ImageUtils;
 
+import javax.imageio.ImageIO;
+import javax.swing.*;
+import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -59,12 +62,15 @@ public class LocalFileHandler implements FileHandler {
     private final String workDir;
     ReentrantLock lock = new ReentrantLock();
 
+    private String fingerPrint;
+
     public LocalFileHandler(OptionService optionService,
                             HaloProperties haloProperties) {
         this.optionService = optionService;
 
         // Get work dir
         workDir = FileHandler.normalizeDirectory(haloProperties.getWorkDir());
+        fingerPrint = haloProperties.getImageFingerprint();
 
         // Check work directory
         checkWorkDir();
@@ -127,6 +133,12 @@ public class LocalFileHandler implements FileHandler {
             // Upload this file
             file.transferTo(uploadPath);
 
+            // Add finger print
+            Path sourcePath = uploadPath;
+            subFilePath = subDir + basename + '.' + extension;
+            uploadPath = Paths.get(workDir, subFilePath);
+            addFingerPrint(sourcePath.toFile(), Paths.get(fingerPrint).toFile(), uploadPath.toFile(), 0);
+
             // Build upload result
             UploadResult uploadResult = new UploadResult();
             uploadResult.setFilename(originalBasename);
@@ -175,6 +187,44 @@ public class LocalFileHandler implements FileHandler {
             log.error("Failed to upload file to local: " + uploadPath, e);
             throw new ServiceException("上传附件失败").setErrorData(uploadPath);
         }
+    }
+
+    private void addFingerPrint(File srcImageFile, File logoImageFile,
+                           File outputImageFile, double degree) throws IOException {
+        OutputStream os = null;
+        Image srcImg = ImageIO.read(srcImageFile);
+
+        BufferedImage buffImg = new BufferedImage(srcImg.getWidth(null),
+                srcImg.getHeight(null), BufferedImage.TYPE_INT_RGB);
+
+        Graphics2D graphics = buffImg.createGraphics();
+        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        graphics.drawImage(srcImg.getScaledInstance(srcImg.getWidth(null),
+                srcImg.getHeight(null), Image.SCALE_SMOOTH), 0, 0, null);
+
+        ImageIcon logoImgIcon = new ImageIcon(ImageIO.read(logoImageFile));
+        Image logoImg = logoImgIcon.getImage();
+
+        //旋转
+        if (degree>0) {
+            graphics.rotate(Math.toRadians(degree),
+                    (double) buffImg.getWidth() / 2,
+                    (double) buffImg.getWidth() / 2);
+        }
+
+        float alpha = 0.8f; // 透明度
+        graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_ATOP, alpha));
+
+        //水印 的位置
+        if (buffImg.getWidth() > logoImgIcon.getIconWidth() && buffImg.getHeight() > logoImgIcon.getIconHeight())
+            graphics.drawImage(logoImg, (buffImg.getWidth() - logoImgIcon.getIconWidth())/2,
+                    (buffImg.getHeight() - logoImgIcon.getIconHeight())/2, null);
+        graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER));
+        graphics.dispose();
+
+        os = new FileOutputStream(outputImageFile);
+        // 生成图片
+        ImageIO.write(buffImg, "JPG", os);
     }
 
     @Override
