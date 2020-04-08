@@ -39,6 +39,8 @@ bootJar {
         attributes('Implementation-Title': 'Halo Application',
                 'Implementation-Version': version)
     }
+    exclude('**/application*.yaml')
+    exclude('**/logo.png')
 }
 
 ext {
@@ -60,6 +62,7 @@ ext {
     flywayVersion = '6.1.0'
     h2Version = '1.4.196'
     mariadbConnectorVersion = '2.5.4'
+    twelvemonkeysVersion = '3.5'
 }
 
 dependencies {
@@ -103,6 +106,9 @@ dependencies {
     implementation "net.coobird:thumbnailator:$thumbnailatorVersion"
     implementation "net.sf.image4j:image4j:$image4jVersion"
     implementation "org.flywaydb:flyway-core:$flywayVersion"
+
+    implementation "com.twelvemonkeys.imageio:imageio-jpeg:$twelvemonkeysVersion"
+    implementation "com.twelvemonkeys.imageio:imageio-tiff:$twelvemonkeysVersion"
 
     runtimeOnly "com.h2database:h2:$h2Version"
     runtimeOnly 'mysql:mysql-connector-java'

@@ -2,10 +2,10 @@ package run.halo.app.handler.file;
 
 import lombok.extern.slf4j.Slf4j;
 import net.coobird.thumbnailator.Thumbnails;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
-import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import run.halo.app.config.properties.HaloProperties;
 import run.halo.app.exception.FileOperationException;
@@ -18,6 +18,7 @@ import run.halo.app.utils.HaloUtils;
 import run.halo.app.utils.ImageUtils;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageWriter;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -26,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Calendar;
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -137,7 +139,10 @@ public class LocalFileHandler implements FileHandler {
             Path sourcePath = uploadPath;
             subFilePath = subDir + basename + '.' + extension;
             uploadPath = Paths.get(workDir, subFilePath);
-            addFingerPrint(sourcePath.toFile(), Paths.get(fingerPrint).toFile(), uploadPath.toFile(), 0);
+            if (!StringUtils.contains(originalBasename, "no_waterprint")) {
+                log.info("Adding waterprint to {}", originalBasename);
+                addFingerPrint(sourcePath.toFile(), Paths.get(fingerPrint).toFile(), uploadPath.toFile(), 0);
+            }
 
             // Build upload result
             UploadResult uploadResult = new UploadResult();
@@ -216,7 +221,14 @@ public class LocalFileHandler implements FileHandler {
         graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_ATOP, alpha));
 
         //水印 的位置
-        if (buffImg.getWidth() > logoImgIcon.getIconWidth() && buffImg.getHeight() > logoImgIcon.getIconHeight())
+        if (buffImg.getWidth() < logoImgIcon.getIconWidth() || buffImg.getHeight() < logoImgIcon.getIconHeight()) {
+            int iconWidth = buffImg.getWidth() / 2;
+            int iconHeight = buffImg.getHeight() / 2;
+            graphics.drawImage(logoImg.getScaledInstance(iconWidth, iconHeight, Image.SCALE_SMOOTH),
+                    (buffImg.getWidth() - iconWidth) / 2,
+                    (buffImg.getHeight() - iconHeight) / 2, null);
+        }
+        else
             graphics.drawImage(logoImg, (buffImg.getWidth() - logoImgIcon.getIconWidth())/2,
                     (buffImg.getHeight() - logoImgIcon.getIconHeight())/2, null);
         graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER));
